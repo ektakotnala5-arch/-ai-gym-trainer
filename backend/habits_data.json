@@ -1,0 +1,23 @@
+{
+  "habits": [
+    {
+      "id": 0,
+      "name": "string",
+      "icon": "\u2b50",
+      "time": "Any Time"
+    },
+    {
+      "id": 0,
+      "name": "string",
+      "icon": "\u2b50",
+      "time": "Any Time"
+    },
+    {
+      "id": 0,
+      "name": "string",
+      "icon": "\u2b50",
+      "time": "Any Time"
+    }
+  ],
+  "history": []
+}
