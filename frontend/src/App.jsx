@@ -6,6 +6,7 @@ import DietPlanner from './components/DietPlanner'
 import HabitTracker from './components/HabitTracker'
 import WorkoutPlanner from './components/WorkoutPlanner'
 import Analytics, { recordSession } from './components/Analytics'
+import AIChat from './components/AIChat'
 import './App.css'
 
 export const EXERCISES = [
@@ -19,7 +20,7 @@ export const EXERCISES = [
   { value: "incline_db_fly", label: "🦋 Incline DB Fly", group: "Chest" },
   { value: "cable_crossover", label: "🔀 Cable Crossover", group: "Chest" },
   { value: "pushup", label: "⬇️ Push Up", group: "Chest" },
-  { value: "dips", label: "💺 Dips", group: "Chest" },
+  { value: "dips", label: "🪑 Dips", group: "Chest" },
   // Back
   { value: "pullup", label: "⬆️ Pull Up", group: "Back" },
   { value: "chinup", label: "⬆️ Chin Up", group: "Back" },
@@ -51,7 +52,7 @@ export const EXERCISES = [
   { value: "skull_crusher", label: "💀 Skull Crusher", group: "Triceps" },
   { value: "tricep_pushdown", label: "⬇️ Tricep Pushdown", group: "Triceps" },
   { value: "rope_pushdown", label: "🪢 Rope Pushdown", group: "Triceps" },
-  { value: "tricep_dip", label: "💺 Tricep Dip", group: "Triceps" },
+  { value: "tricep_dip", label: "🪑 Tricep Dip", group: "Triceps" },
   { value: "close_grip_bench", label: "🏋️ Close Grip Bench", group: "Triceps" },
   // Legs
   { value: "squat", label: "🦵 Squat", group: "Legs" },
@@ -110,7 +111,6 @@ function App() {
     setLoading(false)
   }, [])
 
-  // ── Auto-save reps to Analytics whenever reps increase ──────────────────────
   useEffect(() => {
     if (stats.reps > lastSavedReps && stats.reps > 0) {
       recordSession(exercise, stats.reps - lastSavedReps)
@@ -118,7 +118,6 @@ function App() {
     }
   }, [stats.reps])
 
-  // Reset saved reps counter when exercise changes or session stops
   useEffect(() => {
     setLastSavedReps(0)
   }, [exercise, isRunning])
@@ -163,6 +162,7 @@ function App() {
           <button style={tabStyle('habit')} onClick={() => setTab('habit')}>📅 Habits</button>
           <button style={tabStyle('planner')} onClick={() => setTab('planner')}>🗓️ Planner</button>
           <button style={tabStyle('analytics')} onClick={() => setTab('analytics')}>📊 Analytics</button>
+          <button style={tabStyle('chat')} onClick={() => setTab('chat')}>🤖 My AI</button>
         </div>
 
         {tab === 'workout' && (
@@ -232,6 +232,11 @@ function App() {
       {tab === 'analytics' && (
         <div style={{ flex: 1, overflowY: 'auto', background: '#0f0f0f' }}>
           <Analytics />
+        </div>
+      )}
+      {tab === 'chat' && (
+        <div style={{ flex: 1, overflowY: 'auto', background: '#0f0f0f' }}>
+          <AIChat />
         </div>
       )}
     </div>
