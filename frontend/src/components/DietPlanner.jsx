@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import axios from 'axios'
 
+const API = import.meta.env.VITE_API_URL || 'https://ai-gym-trainer-69ve.onrender.com'
+
 const ALLERGIES = [
   { value: 'gluten', label: '🌾 Gluten' },
   { value: 'dairy', label: '🥛 Dairy' },
@@ -32,7 +34,7 @@ export default function DietPlanner() {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      const res = await axios.post('http://localhost:8000/diet/plan', {
+      const res = await axios.post(`${API}/diet/plan`, {
         ...form,
         age: parseInt(form.age),
         weight: parseFloat(form.weight),
@@ -96,7 +98,6 @@ export default function DietPlanner() {
           ))}
         </div>
 
-        {/* Allergy Section */}
         <div style={{ marginTop: 8, marginBottom: 20 }}>
           <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: 10 }}>
             🚨 Allergies / Intolerances (select all that apply)
@@ -130,8 +131,6 @@ export default function DietPlanner() {
 
       {plan && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Plan Banner */}
           <div style={{
             background: '#1a1a2e', borderRadius: 12, padding: 20,
             textAlign: 'center', border: '1px solid #00c853'
@@ -143,14 +142,12 @@ export default function DietPlanner() {
             </div>
           </div>
 
-          {/* Allergy Note */}
           {plan.allergy_note && (
             <div style={{ background: '#2a1a1a', borderRadius: 12, padding: 16, border: '1px solid #e53935' }}>
               <div style={{ color: '#ff5722', fontSize: '0.9rem' }}>⚠️ {plan.allergy_note}</div>
             </div>
           )}
 
-          {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
             {[
               { label: 'BMI', value: plan.bmi, sub: plan.bmi_category, color: getBMIColor(plan.bmi_category) },
@@ -168,7 +165,6 @@ export default function DietPlanner() {
             ))}
           </div>
 
-          {/* Meal Plan */}
           <div style={{ background: '#2a2a2a', borderRadius: 12, padding: 20 }}>
             <h3 style={{ marginBottom: 16, color: '#ff9800' }}>🍽️ Daily Meal Plan</h3>
             {plan.meals.map((meal, i) => (
@@ -189,7 +185,6 @@ export default function DietPlanner() {
             ))}
           </div>
 
-          {/* Grocery + Tips */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ background: '#2a2a2a', borderRadius: 12, padding: 20 }}>
               <h3 style={{ marginBottom: 14, color: '#2196f3' }}>🛒 Grocery List</h3>
@@ -214,7 +209,6 @@ export default function DietPlanner() {
               ))}
             </div>
           </div>
-
         </div>
       )}
     </div>
