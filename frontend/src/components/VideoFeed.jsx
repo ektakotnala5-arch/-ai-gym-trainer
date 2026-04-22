@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 
-const WS_URL = 'ws://localhost:8000/ws/session1'
+const WS_URL = 'wss://ai-gym-trainer-69ve.onrender.com/ws/session1'
 
 const CAMERA_ERRORS = {
   NotFoundError: {
@@ -322,3 +322,4 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     </div>
   )
 }
+
