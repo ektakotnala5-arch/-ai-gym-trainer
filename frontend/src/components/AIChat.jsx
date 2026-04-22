@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://ai-gym-trainer-69ve.onrender.com'
+
 const suggestions = [
   "Give me a chest workout plan 💪",
   "What should I eat to build muscle? 🥩",
@@ -26,7 +28,7 @@ const renderMarkdown = (text) => {
 
 export default function AIChat() {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hey! 👋 I'm MY AI — your personal assistant. Ask me anything about fitness, diet, science, or any topic!" }
+    { role: 'assistant', content: "Hey! 👋 I'm MY AI — your personal fitness assistant. Ask me anything about workouts, diet, nutrition, muscle building, fat loss, or any fitness topic!" }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -45,15 +47,47 @@ export default function AIChat() {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:8000/chat/message', {
+      // First try backend
+      const res = await fetch(`${API_URL}/chat/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, history: newMessages.slice(-6) })
       })
+      if (!res.ok) throw new Error('Backend error')
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "Sorry, try again!" }])
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Could not connect to server. Make sure backend is running!' }])
+      // Fallback: call Anthropic API directly
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': '',
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: `You are MY AI — a personal fitness and gym assistant. You are an expert in:
+- Workout plans (chest, back, legs, arms, shoulders, abs, full body)
+- Diet and nutrition (muscle building, fat loss, weight gain, cutting)
+- Exercise techniques and form
+- Supplements and recovery
+- Fitness goals and motivation
+- Food and meal planning
+- Calorie and macro calculation
+
+Always give detailed, practical, actionable advice. Use emojis to make responses engaging. Format with headers and bullet points when listing exercises or meal plans.`,
+            messages: newMessages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+          })
+        })
+        const data = await res.json()
+        const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Please try again!"
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      } catch (err) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '❌ Could not connect. Please check your internet connection and try again!' }])
+      }
     }
     setLoading(false)
   }
@@ -64,7 +98,7 @@ export default function AIChat() {
         <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #00c853, #00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>🤖</div>
         <div>
           <div style={{ color: '#fff', fontWeight: 700, fontSize: '1rem' }}>MY AI</div>
-          <div style={{ color: '#00c853', fontSize: '0.75rem' }}>● Online — Ask me anything, anytime!</div>
+          <div style={{ color: '#00c853', fontSize: '0.75rem' }}>● Online — Ask me anything about fitness!</div>
         </div>
       </div>
 
@@ -118,7 +152,7 @@ export default function AIChat() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="Ask MY AI anything..."
+          placeholder="Ask MY AI anything about fitness..."
           style={{ flex: 1, padding: '12px 18px', background: '#1a1a1a', border: '1px solid #333', borderRadius: 24, color: '#fff', fontSize: '0.92rem', outline: 'none' }}
         />
         <button onClick={() => send()} disabled={loading || !input.trim()}

@@ -8,7 +8,13 @@ import WorkoutPlanner from './components/WorkoutPlanner'
 import Analytics, { recordSession } from './components/Analytics'
 import AIChat from './components/AIChat'
 import './App.css'
-
+// Keep backend alive
+useEffect(() => {
+  fetch('https://ai-gym-trainer-69ve.onrender.com/health')
+  setInterval(() => {
+    fetch('https://ai-gym-trainer-69ve.onrender.com/health')
+  }, 5 * 60 * 1000) // ping every 5 minutes
+}, [])
 export const EXERCISES = [
   // Chest
   { value: "bench_press", label: "🏋️ Bench Press", group: "Chest" },
