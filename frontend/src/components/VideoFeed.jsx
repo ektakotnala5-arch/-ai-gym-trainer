@@ -5,24 +5,23 @@ const WS_URL = 'wss://ai-gym-trainer-69ve.onrender.com/ws/session1'
 const CAMERA_ERRORS = {
   NotFoundError: {
     icon: '📷',
-    title: 'No Camera Detected',
-    message: 'Your laptop camera could not be found.',
+    title: 'No Camera Found',
+    message: 'No camera was detected on your device.',
     steps: [
-      'Check if camera is enabled in Device Manager',
-      'Press Fn + camera key (some laptops have a hardware switch)',
-      'Try: Settings → Privacy → Camera → Allow apps to use camera',
-      'Update camera drivers from Device Manager',
-      'Restart your browser and try again',
+      'Allow camera access when prompted',
+      'Check browser permissions in Settings',
+      'Try refreshing the page',
+      'Use Chrome or Safari for best support',
     ],
     color: '#ff9800',
   },
   NotAllowedError: {
     icon: '🔒',
-    title: 'Camera Permission Denied',
-    message: 'Browser was denied access to your camera.',
+    title: 'Camera Blocked',
+    message: 'Camera permission was denied.',
     steps: [
-      'Click the camera icon in browser address bar',
-      'Select "Allow" for camera access',
+      'Tap the lock/camera icon in address bar',
+      'Set Camera to "Allow"',
       'Refresh the page and try again',
     ],
     color: '#e53935',
@@ -30,21 +29,21 @@ const CAMERA_ERRORS = {
   NotReadableError: {
     icon: '⚠️',
     title: 'Camera In Use',
-    message: 'Another app is currently using your camera.',
+    message: 'Camera is being used by another app.',
     steps: [
-      'Close any video call apps (Zoom, Teams, Meet)',
-      'Close other browser tabs using the camera',
+      'Close other apps using the camera',
+      'Close other browser tabs',
       'Restart your browser',
     ],
     color: '#ff9800',
   },
   OverconstrainedError: {
     icon: '🔧',
-    title: 'Camera Not Compatible',
-    message: 'Camera does not support the required settings.',
+    title: 'Camera Incompatible',
+    message: 'Camera does not support required settings.',
     steps: [
-      'Try a different browser (Chrome recommended)',
-      'Connect an external USB webcam',
+      'Try Chrome (recommended)',
+      'Try switching cameras',
     ],
     color: '#ff9800',
   },
@@ -53,15 +52,15 @@ const CAMERA_ERRORS = {
     title: 'Camera Error',
     message: 'Could not access your camera.',
     steps: [
-      'Refresh the page and try again',
+      'Refresh and try again',
       'Try a different browser',
-      'Connect an external USB webcam',
+      'Check camera permissions in Settings',
     ],
     color: '#e53935',
   },
 }
 
-export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }) {
+export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning, isMobile }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const wsRef = useRef(null)
@@ -69,6 +68,7 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
   const intervalRef = useRef(null)
   const [cameraError, setCameraError] = useState(null)
   const [retrying, setRetrying] = useState(false)
+  const [useFrontCamera, setUseFrontCamera] = useState(true)
 
   const stopSession = useCallback(() => {
     clearInterval(intervalRef.current)
@@ -77,11 +77,11 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     setIsRunning(false)
   }, [setIsRunning])
 
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (facingMode = 'user') => {
     setCameraError(null)
     setRetrying(true)
 
-    // First check if any camera devices exist
+    // Check for camera devices
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       const cameras = devices.filter(d => d.kind === 'videoinput')
@@ -93,12 +93,14 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     } catch {}
 
     let stream
+    // On mobile try with facingMode first
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
-      })
+      const constraints = isMobile
+        ? { video: { facingMode: { ideal: facingMode }, width: { ideal: 720 }, height: { ideal: 1280 } } }
+        : { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } }
+      stream = await navigator.mediaDevices.getUserMedia(constraints)
     } catch (err) {
-      // Try again with minimal constraints
+      // Fallback to minimal constraints
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true })
       } catch (err2) {
@@ -112,7 +114,9 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     setRetrying(false)
     streamRef.current = stream
     videoRef.current.srcObject = stream
-    await videoRef.current.play()
+    try {
+      await videoRef.current.play()
+    } catch {}
 
     const ws = new WebSocket(WS_URL)
     wsRef.current = ws
@@ -124,12 +128,20 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
       intervalRef.current = setInterval(() => {
         const canvas = canvasRef.current
         const video = videoRef.current
-        if (!canvas || !video) return
+        if (!canvas || !video || video.videoWidth === 0) return
 
         canvas.width = video.videoWidth
         canvas.height = video.videoHeight
         const ctx = canvas.getContext('2d')
-        ctx.drawImage(video, 0, 0)
+        // Mirror on mobile front camera
+        if (isMobile && facingMode === 'user') {
+          ctx.save()
+          ctx.scale(-1, 1)
+          ctx.drawImage(video, -video.videoWidth, 0)
+          ctx.restore()
+        } else {
+          ctx.drawImage(video, 0, 0)
+        }
 
         canvas.toBlob(blob => {
           const reader = new FileReader()
@@ -149,7 +161,11 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
       if (data.frame) {
         const img = new Image()
         img.onload = () => {
-          const ctx = canvasRef.current?.getContext('2d')
+          const canvas = canvasRef.current
+          if (!canvas) return
+          const ctx = canvas.getContext('2d')
+          canvas.width = img.width
+          canvas.height = img.height
           if (ctx) ctx.drawImage(img, 0, 0)
         }
         img.src = 'data:image/jpeg;base64,' + data.frame
@@ -163,66 +179,83 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     }
 
     ws.onerror = () => stopSession()
-  }, [exercise, onStats, setIsRunning, stopSession])
+  }, [exercise, onStats, setIsRunning, stopSession, isMobile])
+
+  const handleStartSession = () => startSession(useFrontCamera ? 'user' : 'environment')
+
+  const toggleCamera = () => {
+    const newFacing = !useFrontCamera
+    setUseFrontCamera(newFacing)
+    if (isRunning) {
+      stopSession()
+      setTimeout(() => startSession(newFacing ? 'user' : 'environment'), 300)
+    }
+  }
 
   useEffect(() => { return () => stopSession() }, [stopSession])
 
   const errInfo = cameraError ? CAMERA_ERRORS[cameraError] : null
 
   return (
-    <div style={{ position: 'relative', flex: 1, background: '#000', minHeight: 0, overflow: 'hidden' }}>
-      <video ref={videoRef} style={{ display: 'none' }} />
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+    <div style={{ position: 'relative', flex: 1, background: '#000', minHeight: 0, overflow: 'hidden', height: '100%' }}>
+      <video
+        ref={videoRef}
+        style={{ display: 'none' }}
+        playsInline  // CRITICAL for iOS Safari
+        muted
+        autoPlay
+      />
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: isMobile ? 'cover' : 'contain',
+          display: 'block'
+        }}
+      />
 
-      {/* ── Camera Error Screen ── */}
+      {/* Camera Error Screen */}
       {cameraError && (
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0a0a0a 0%, #111 100%)',
-          padding: 32,
+          background: 'linear-gradient(135deg, #080b0f 0%, #0d1117 100%)',
+          padding: 24,
         }}>
-          <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>{errInfo.icon}</div>
-
-            <div style={{
-              fontSize: '1.3rem', fontWeight: 800, color: '#fff',
-              marginBottom: 8, letterSpacing: 0.5,
-            }}>
+          <div style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '3rem' : '3.5rem', marginBottom: 12 }}>{errInfo.icon}</div>
+            <div style={{ fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: 800, color: '#fff', marginBottom: 8 }}>
               {errInfo.title}
             </div>
-
-            <div style={{ fontSize: '0.88rem', color: '#666', marginBottom: 24, lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 24, lineHeight: 1.6 }}>
               {errInfo.message}
             </div>
-
-            {/* Fix Steps */}
             <div style={{
-              background: '#111', borderRadius: 14, padding: '18px 20px',
+              background: '#0d1117', borderRadius: 14, padding: '16px 18px',
               border: `1px solid ${errInfo.color}33`, textAlign: 'left', marginBottom: 24,
             }}>
-              <div style={{ fontSize: '0.65rem', color: errInfo.color, letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>
-                HOW TO FIX
-              </div>
+              <div style={{ fontSize: '0.62rem', color: errInfo.color, letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>HOW TO FIX</div>
               {errInfo.steps.map((step, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'flex-start', gap: 10,
-                  padding: '7px 0',
+                  padding: '8px 0',
                   borderBottom: i < errInfo.steps.length - 1 ? '1px solid #1a1a1a' : 'none',
                 }}>
                   <div style={{
-                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
                     background: `${errInfo.color}20`, color: errInfo.color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.65rem', fontWeight: 800, marginTop: 1,
+                    fontSize: '0.65rem', fontWeight: 800,
                   }}>{i + 1}</div>
-                  <div style={{ fontSize: '0.82rem', color: '#aaa', lineHeight: 1.5 }}>{step}</div>
+                  <div style={{ fontSize: '0.83rem', color: '#aaa', lineHeight: 1.5 }}>{step}</div>
                 </div>
               ))}
             </div>
-
-            <button onClick={startSession} disabled={retrying} style={{
-              padding: '12px 40px', fontSize: '0.9rem', fontWeight: 800,
+            <button onClick={handleStartSession} disabled={retrying} style={{
+              padding: isMobile ? '14px 0' : '12px 40px',
+              width: isMobile ? '100%' : 'auto',
+              fontSize: '0.9rem', fontWeight: 800,
               background: retrying ? '#1a1a1a' : 'linear-gradient(135deg, #00c853, #00897b)',
               color: retrying ? '#444' : '#000',
               border: 'none', borderRadius: 50, cursor: retrying ? 'not-allowed' : 'pointer',
@@ -232,66 +265,88 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
             }}>
               {retrying ? '⏳ Checking...' : '↻ Try Again'}
             </button>
-
-            <div style={{ marginTop: 18, fontSize: '0.75rem', color: '#333', lineHeight: 1.6 }}>
-              💡 No built-in camera? Connect a USB webcam and click Try Again.
-            </div>
           </div>
         </div>
       )}
 
-      {/* ── Idle Screen ── */}
+      {/* Idle Screen */}
       {!isRunning && !cameraError && (
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0a0a0a 0%, #111827 50%, #0a0a0a 100%)',
+          background: 'linear-gradient(135deg, #080b0f 0%, #0d1117 60%, #080b0f 100%)',
         }}>
+          {/* Grid bg */}
           <div style={{
             position: 'absolute', inset: 0, opacity: 0.04,
             backgroundImage: 'linear-gradient(#00c853 1px, transparent 1px), linear-gradient(90deg, #00c853 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
+            backgroundSize: '36px 36px',
           }} />
+          {/* Glow */}
           <div style={{
-            position: 'absolute', width: 300, height: 300, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(0,200,83,0.12) 0%, transparent 70%)',
+            position: 'absolute',
+            width: isMobile ? 240 : 300, height: isMobile ? 240 : 300,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0,200,83,0.1) 0%, transparent 70%)',
             animation: 'pulse 3s ease-in-out infinite',
           }} />
 
-          <div style={{ position: 'relative', textAlign: 'center' }}>
+          <div style={{ position: 'relative', textAlign: 'center', padding: '0 32px' }}>
             <div style={{
-              fontSize: '4rem', marginBottom: 8,
+              fontSize: isMobile ? '3.5rem' : '4rem', marginBottom: 8,
               filter: 'drop-shadow(0 0 20px rgba(0,200,83,0.5))',
               animation: 'float 3s ease-in-out infinite',
             }}>🏋️</div>
             <div style={{
-              fontSize: '1.4rem', fontWeight: 800, color: '#fff',
+              fontSize: isMobile ? '1.2rem' : '1.4rem',
+              fontWeight: 800, color: '#fff',
               letterSpacing: 2, marginBottom: 6, textTransform: 'uppercase',
-            }}>Camera Ready</div>
-            <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 32, letterSpacing: 1 }}>
-              Position yourself in frame
+            }}>Ready to Train</div>
+            <div style={{ fontSize: '0.82rem', color: '#444', marginBottom: 32, letterSpacing: 1 }}>
+              {isMobile ? 'Point camera at yourself' : 'Position yourself in frame'}
             </div>
-            <button onClick={startSession} disabled={retrying} style={{
-              padding: '14px 48px', fontSize: '1rem', fontWeight: 800,
-              background: retrying ? '#1a1a1a' : 'linear-gradient(135deg, #00c853, #00897b)',
-              color: retrying ? '#444' : '#000',
-              border: 'none', borderRadius: 50, cursor: retrying ? 'not-allowed' : 'pointer',
-              letterSpacing: 2, textTransform: 'uppercase',
-              boxShadow: '0 0 30px rgba(0,200,83,0.4), 0 4px 20px rgba(0,0,0,0.4)',
-              transition: 'all 0.2s',
-            }}
-              onMouseEnter={e => { if (!retrying) e.target.style.transform = 'scale(1.05)' }}
-              onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+
+            {/* START button */}
+            <button
+              onClick={handleStartSession}
+              disabled={retrying}
+              style={{
+                padding: isMobile ? '16px 0' : '14px 48px',
+                width: isMobile ? '100%' : 'auto',
+                maxWidth: 280,
+                fontSize: isMobile ? '1rem' : '1rem',
+                fontWeight: 800,
+                background: retrying ? '#1a1a1a' : 'linear-gradient(135deg, #00c853, #00897b)',
+                color: retrying ? '#444' : '#000',
+                border: 'none', borderRadius: 50, cursor: retrying ? 'not-allowed' : 'pointer',
+                letterSpacing: 2, textTransform: 'uppercase',
+                boxShadow: '0 0 40px rgba(0,200,83,0.4), 0 4px 20px rgba(0,0,0,0.4)',
+                transition: 'all 0.2s',
+                display: 'block', margin: '0 auto',
+              }}
             >
-              {retrying ? '⏳ Starting...' : '▶ Start Session'}
+              {retrying ? '⏳ Starting...' : '▶  Start Session'}
             </button>
+
+            {/* Camera flip button (mobile only) */}
+            {isMobile && (
+              <button onClick={toggleCamera} style={{
+                marginTop: 16, padding: '10px 24px',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid #2a3a4a',
+                borderRadius: 30, color: '#778', fontSize: '0.82rem', fontWeight: 600,
+                cursor: 'pointer', letterSpacing: 1,
+              }}>
+                🔄 {useFrontCamera ? 'Use Back Camera' : 'Use Front Camera'}
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── Live indicators ── */}
+      {/* Live indicators */}
       {isRunning && (
         <>
+          {/* LIVE badge */}
           <div style={{
             position: 'absolute', top: 16, left: 16,
             display: 'flex', alignItems: 'center', gap: 6,
@@ -299,18 +354,29 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
             padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
           }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e53935', animation: 'blink 1s infinite' }} />
-            <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 1 }}>LIVE</span>
+            <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700, letterSpacing: 1 }}>LIVE</span>
           </div>
-          <button onClick={stopSession} style={{
-            position: 'absolute', top: 16, right: 16,
-            padding: '8px 20px', background: 'rgba(229,57,53,0.9)',
-            backdropFilter: 'blur(8px)',
-            color: '#fff', border: '1px solid rgba(229,57,53,0.5)',
-            borderRadius: 20, cursor: 'pointer', fontSize: '0.8rem',
-            fontWeight: 700, letterSpacing: 1,
-          }}>
-            ■ STOP
-          </button>
+
+          {/* Stop button + camera flip */}
+          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {isMobile && (
+              <button onClick={toggleCamera} style={{
+                padding: '7px 14px',
+                background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+                color: '#fff', border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 20, cursor: 'pointer', fontSize: '1rem',
+              }}>🔄</button>
+            )}
+            <button onClick={stopSession} style={{
+              padding: '7px 18px',
+              background: 'rgba(229,57,53,0.9)', backdropFilter: 'blur(8px)',
+              color: '#fff', border: '1px solid rgba(229,57,53,0.4)',
+              borderRadius: 20, cursor: 'pointer', fontSize: '0.8rem',
+              fontWeight: 700, letterSpacing: 1,
+            }}>
+              ■ STOP
+            </button>
+          </div>
         </>
       )}
 
@@ -322,4 +388,3 @@ export default function VideoFeed({ exercise, onStats, isRunning, setIsRunning }
     </div>
   )
 }
-

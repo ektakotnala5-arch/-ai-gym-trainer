@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -9,8 +10,7 @@ import hmac
 import bcrypt
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-SECRET_KEY = "aigymtrainer2024supersecretkey"
+SECRET_KEY = os.getenv("SECRET_KEY", "aigymtrainer2024supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 

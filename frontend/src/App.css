@@ -4,8 +4,16 @@ body {
   background: #0f0f0f;
   color: #fff;
   font-family: 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Desktop app layout */
 .app { display: flex; flex-direction: column; height: 100vh; }
 
 .header {
@@ -15,6 +23,7 @@ body {
   padding: 16px 24px;
   background: #1a1a1a;
   border-bottom: 1px solid #333;
+  flex-shrink: 0;
 }
 
 .header h1 { font-size: 1.4rem; }
@@ -35,3 +44,14 @@ body {
   gap: 0;
   overflow: hidden;
 }
+
+/* Mobile safe area + scrollbar hide */
+@supports (padding: max(0px)) {
+  .safe-bottom { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* Prevent zoom on double tap iOS */
+* { touch-action: manipulation; }
